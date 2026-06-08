@@ -30,17 +30,17 @@ app.use(
 );
 
 // ─── CORS (Dynamic — supports local + production) ─────────────────────────────
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || "http://localhost:5173")
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || "http://localhost:5173,http://localhost:5174,https://smartcrm-nine.vercel.app")
   .split(",")
   .map((o) => o.trim());
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== "production") {
         callback(null, true);
       } else {
-        callback(new Error(`CORS blocked: ${origin}`));
+        callback(null, false);
       }
     },
     credentials: true,
