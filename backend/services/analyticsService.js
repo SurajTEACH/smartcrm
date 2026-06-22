@@ -261,8 +261,24 @@ export const getTopPerformers = async () => {
 // ─── Recent Activities ────────────────────────────────────────────────────────
 export const getRecentActivities = async (user) => {
   const matchQuery = { isDeleted: false };
+  let customerFilter = { isDeleted: false };
+
   if (user.role === "sales") {
     matchQuery.assignedTo = user._id;
+
+    const assignedLeadsForCust = await Lead.find({
+      assignedTo: user._id,
+      isDeleted: false,
+      customerId: { $ne: null }
+    }).select("customerId");
+    const customerIds = assignedLeadsForCust.map(l => l.customerId);
+    customerFilter = {
+      isDeleted: false,
+      $or: [
+        { createdBy: user._id },
+        { _id: { $in: customerIds } }
+      ]
+    };
   }
 
   const [recentLeads, recentCustomers, recentTasks] = await Promise.all([
@@ -270,7 +286,7 @@ export const getRecentActivities = async (user) => {
       .sort({ createdAt: -1 })
       .limit(5)
       .select("name status source createdByName createdAt"),
-    Customer.find(user.role === "admin" ? { isDeleted: false } : { isDeleted: false, createdBy: user._id })
+    Customer.find(customerFilter)
       .sort({ createdAt: -1 })
       .limit(3)
       .select("name email createdByName createdAt"),

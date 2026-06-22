@@ -1,4 +1,5 @@
 import Customer from "../models/Customer.js";
+import Lead from "../models/Lead.js";
 
 export const createCustomerService = async (data, user) => {
   return await Customer.create({
@@ -12,28 +13,52 @@ export const createCustomerService = async (data, user) => {
 };
 
 export const getCustomersService = async (user) => {
-    if(user.role === "admin"){
+    if (user.role === "admin") {
         return await Customer.find({ isDeleted: false });
     } else {
-        return await Customer.find({
-           createdBy: user._id,
+        const assignedLeads = await Lead.find({
+            assignedTo: user._id,
             isDeleted: false,
-        })
+            customerId: { $ne: null }
+        }).select("customerId");
+
+        const customerIds = assignedLeads.map(l => l.customerId);
+
+        return await Customer.find({
+            isDeleted: false,
+            $or: [
+                { createdBy: user._id },
+                { _id: { $in: customerIds } }
+            ]
+        });
     }
 };
 
-export const  updateCustomerService = async (id, data, user ) => {
-    let filter = { _id: id};
+export const updateCustomerService = async (id, data, user) => {
+    let filter = { _id: id };
 
-    if(user.role !== "admin") {
-        filter.createdBy = user._id;
+    if (user.role !== "admin") {
+        const customer = await Customer.findOne({ _id: id, isDeleted: false });
+        if (!customer) throw new Error("Customer not found");
+
+        if (customer.createdBy?.toString() !== user._id.toString()) {
+            const assignedLeadExists = await Lead.exists({
+                assignedTo: user._id,
+                customerId: id,
+                isDeleted: false
+            });
+
+            if (!assignedLeadExists) {
+                throw new Error("You are not allowed to update this customer");
+            }
+        }
     }
 
     return await Customer.findOneAndUpdate(
         filter,
         data,
         {
-            new : true,
+            new: true,
         }
     );
 };
